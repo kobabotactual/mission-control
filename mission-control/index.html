@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mission Control | Koba</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-hover: #1a1a24;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-muted: #808090;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+        header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        .logo span { font-size: 1.5rem; }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+        .status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        @media (max-width: 768px) {
+            .board { grid-template-columns: 1fr; }
+        }
+        .column {
+            background: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            min-height: 400px;
+        }
+        .column-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .column-title {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .count {
+            background: var(--border);
+            padding: 0.125rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .tasks {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .task {
+            background: var(--surface-hover);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: grab;
+            transition: all 0.2s;
+        }
+        .task:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        .task.dragging { opacity: 0.5; }
+        .task-text { font-size: 0.9375rem; }
+        .task-meta {
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .add-task {
+            margin: 0 1rem 1rem;
+            padding: 0.75rem;
+            background: transparent;
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .add-task:hover {
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            z-index: 100;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 400px;
+        }
+        .modal h3 { margin-bottom: 1rem; }
+        .modal input {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            margin-bottom: 1rem;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-secondary {
+            background: var(--border);
+            color: var(--text);
+        }
+        .btn-secondary:hover { background: var(--surface-hover); }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <span>🥷</span>
+            <span>Mission Control</span>
+        </div>
+        <div class="status">Connected to Koba</div>
+    </header>
+    
+    <div class="board">
+        <div class="column" data-column="todo">
+            <div class="column-header">
+                <span class="column-title">📋 Todo</span>
+                <span class="count" id="count-todo">0</span>
+            </div>
+            <div class="tasks" id="todo"></div>
+            <button class="add-task" onclick="openModal('todo')">+ Add task</button>
+        </div>
+        
+        <div class="column" data-column="doing">
+            <div class="column-header">
+                <span class="column-title">🔨 Doing</span>
+                <span class="count" id="count-doing">0</span>
+            </div>
+            <div class="tasks" id="doing"></div>
+            <button class="add-task" onclick="openModal('doing')">+ Add task</button>
+        </div>
+        
+        <div class="column" data-column="done">
+            <div class="column-header">
+                <span class="column-title">✅ Done</span>
+                <span class="count" id="count-done">0</span>
+            </div>
+            <div class="tasks" id="done"></div>
+            <button class="add-task" onclick="openModal('done')">+ Add task</button>
+        </div>
+    </div>
+    
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <h3>Add Task</h3>
+            <input type="text" id="taskInput" placeholder="What needs to be done?" autofocus>
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" onclick="addTask()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentColumn = 'todo';
+        let draggedTask = null;
+        
+        // Load tasks from API
+        async function loadTasks() {
+            try {
+                const res = await fetch('/api/tasks');
+                const data = await res.json();
+                renderTasks(data);
+            } catch (err) {
+                console.error('Failed to load tasks:', err);
+            }
+        }
+        
+        // Render tasks to DOM
+        function renderTasks(data) {
+            ['todo', 'doing', 'done'].forEach(col => {
+                const container = document.getElementById(col);
+                container.innerHTML = '';
+                (data[col] || []).forEach((task, idx) => {
+                    const el = createTaskElement(task, col, idx);
+                    container.appendChild(el);
+                });
+                document.getElementById(`count-${col}`).textContent = (data[col] || []).length;
+            });
+        }
+        
+        // Create task DOM element
+        function createTaskElement(task, column, index) {
+            const div = document.createElement('div');
+            div.className = 'task';
+            div.draggable = true;
+            div.dataset.column = column;
+            div.dataset.index = index;
+            div.innerHTML = `
+                <div class="task-text">${escapeHtml(task.text)}</div>
+                <div class="task-meta">${formatTime(task.created)}</div>
+            `;
+            
+            div.addEventListener('dragstart', (e) => {
+                draggedTask = { task, column, index };
+                div.classList.add('dragging');
+            });
+            
+            div.addEventListener('dragend', () => {
+                div.classList.remove('dragging');
+                draggedTask = null;
+            });
+            
+            return div;
+        }
+        
+        // Drag & drop
+        document.querySelectorAll('.tasks').forEach(container => {
+            container.addEventListener('dragover', (e) => e.preventDefault());
+            container.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                if (!draggedTask) return;
+                
+                const newColumn = container.id;
+                if (newColumn === draggedTask.column) return;
+                
+                // Update data
+                const res = await fetch('/api/tasks');
+                const data = await res.json();
+                
+                data[draggedTask.column].splice(draggedTask.index, 1);
+                data[newColumn].push(draggedTask.task);
+                
+                await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                renderTasks(data);
+            });
+        });
+        
+        // Modal functions
+        function openModal(column) {
+            currentColumn = column;
+            document.getElementById('modal').classList.add('active');
+            document.getElementById('taskInput').focus();
+        }
+        
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+            document.getElementById('taskInput').value = '';
+        }
+        
+        async function addTask() {
+            const input = document.getElementById('taskInput');
+            const text = input.value.trim();
+            if (!text) return;
+            
+            const res = await fetch('/api/tasks');
+            const data = await res.json();
+            
+            data[currentColumn].push({
+                text,
+                created: new Date().toISOString()
+            });
+            
+            await fetch('/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            renderTasks(data);
+            closeModal();
+        }
+        
+        // Utils
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatTime(iso) {
+            if (!iso) return '';
+            const date = new Date(iso);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+            
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+            if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+            return `${Math.floor(diff/86400)}d ago`;
+        }
+        
+        // Enter key in input
+        document.getElementById('taskInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addTask();
+        });
+        
+        // Init
+        loadTasks();
+        setInterval(loadTasks, 5000); // Auto-refresh every 5s
+    </script>
+</body>
+</html>
