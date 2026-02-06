@@ -55,6 +55,19 @@
             border-radius: 50%;
             animation: pulse 2s infinite;
         }
+        .delivery-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 0.25rem 0.75rem;
+            background: var(--surface);
+            border-radius: 999px;
+            border: 1px solid var(--border);
+        }
+        .delivery-status.online { border-color: var(--success); color: var(--success); }
+        .delivery-status.offline { border-color: #ef4444; color: #ef4444; }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -195,7 +208,10 @@
             <span>🥷</span>
             <span>Mission Control</span>
         </div>
-        <div class="status">Connected to Koba</div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div class="delivery-status" id="deliveryStatus">Checking...</div>
+            <div class="status">Connected to Koba</div>
+        </div>
     </header>
     
     <div class="board">
@@ -377,9 +393,33 @@
             if (e.key === 'Enter') addTask();
         });
         
+        // Delivery status indicator
+        async function updateDeliveryStatus() {
+            try {
+                const res = await fetch('/api/tasks');
+                const data = await res.json();
+                
+                // Check for delivery alert in doing column
+                const alerts = data.doing?.filter(t => t.text?.includes('Delivery failing')) || [];
+                const statusEl = document.getElementById('deliveryStatus');
+                
+                if (alerts.length > 0) {
+                    statusEl.textContent = '🔴 Telegram offline';
+                    statusEl.className = 'delivery-status offline';
+                } else {
+                    statusEl.textContent = '🟢 Telegram online';
+                    statusEl.className = 'delivery-status online';
+                }
+            } catch (err) {
+                console.error('Failed to check delivery status:', err);
+            }
+        }
+        
         // Init
         loadTasks();
+        updateDeliveryStatus();
         setInterval(loadTasks, 5000); // Auto-refresh every 5s
+        setInterval(updateDeliveryStatus, 30000); // Check delivery every 30s
     </script>
 </body>
 </html>
