@@ -16,6 +16,7 @@
             --accent-hover: #818cf8;
             --success: #10b981;
             --warning: #f59e0b;
+            --error: #ef4444;
             --chat-bubble-me: #6366f1;
             --chat-bubble-them: #2a2a3a;
         }
@@ -57,33 +58,29 @@
             border-radius: 50%;
             animation: pulse 2s infinite;
         }
-        .delivery-status {
+        
+        /* Connection indicators */
+        .indicators {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.75rem;
+        }
+        .indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
             font-size: 0.75rem;
-            color: var(--text-muted);
             padding: 0.25rem 0.75rem;
             background: var(--surface);
             border-radius: 999px;
             border: 1px solid var(--border);
+            transition: all 0.3s;
         }
-        .delivery-status.online { border-color: var(--success); color: var(--success); }
-        .delivery-status.offline { border-color: #ef4444; color: #ef4444; }
-        .ws-status {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            padding: 0.25rem 0.75rem;
-            background: var(--surface);
-            border-radius: 999px;
-            border: 1px solid var(--border);
-        }
-        .ws-status.connected { border-color: var(--success); color: var(--success); }
-        .ws-status.connecting { border-color: var(--warning); color: var(--warning); }
-        .ws-status.disconnected { border-color: #ef4444; color: #ef4444; }
+        .indicator.connected { border-color: var(--success); color: var(--success); }
+        .indicator.connecting { border-color: var(--warning); color: var(--warning); }
+        .indicator.disconnected { border-color: var(--error); color: var(--error); }
+        .indicator.koba { border-color: var(--accent); color: var(--accent); }
+        
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -223,6 +220,10 @@
             align-items: center;
             gap: 0.5rem;
         }
+        .chat-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
         .chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -234,7 +235,7 @@
         .message {
             display: flex;
             flex-direction: column;
-            max-width: 70%;
+            max-width: 80%;
             animation: slideIn 0.2s ease;
         }
         @keyframes slideIn {
@@ -245,7 +246,7 @@
             align-self: flex-end;
             align-items: flex-end;
         }
-        .message.them {
+        .message.koba {
             align-self: flex-start;
             align-items: flex-start;
         }
@@ -260,21 +261,33 @@
             background: var(--chat-bubble-me);
             border-bottom-right-radius: 4px;
         }
-        .message.them .message-bubble {
+        .message.koba .message-bubble {
             background: var(--chat-bubble-them);
+            border: 1px solid var(--border);
             border-bottom-left-radius: 4px;
+        }
+        .message-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.25rem;
+            padding: 0 0.5rem;
+        }
+        .message-sender {
+            font-size: 0.7rem;
+            color: var(--accent);
+            font-weight: 500;
         }
         .message-time {
             font-size: 0.7rem;
             color: var(--text-muted);
-            margin-top: 0.25rem;
-            padding: 0 0.5rem;
         }
         .typing-indicator {
             display: none;
             align-self: flex-start;
             padding: 0.75rem 1rem;
             background: var(--chat-bubble-them);
+            border: 1px solid var(--border);
             border-radius: 16px;
             border-bottom-left-radius: 4px;
             font-size: 0.9375rem;
@@ -318,6 +331,11 @@
             transition: border-color 0.2s;
         }
         .chat-input:focus { border-color: var(--accent); }
+        .chat-input:disabled {
+            background: var(--surface-hover);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
         .chat-send-btn {
             padding: 0.75rem 1.25rem;
             background: var(--accent);
@@ -331,11 +349,24 @@
             align-items: center;
             justify-content: center;
         }
-        .chat-send-btn:hover { background: var(--accent-hover); }
+        .chat-send-btn:hover:not(:disabled) { background: var(--accent-hover); }
         .chat-send-btn:disabled {
             background: var(--border);
             cursor: not-allowed;
+            opacity: 0.6;
         }
+        .connection-warning {
+            display: none;
+            padding: 0.75rem 1rem;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            border-radius: 8px;
+            color: var(--error);
+            font-size: 0.875rem;
+            text-align: center;
+            margin: 0 1.5rem;
+        }
+        .connection-warning.visible { display: block; }
         
         /* Modal */
         .modal {
@@ -398,9 +429,9 @@
             <span>🥷</span>
             <span>Mission Control</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <div class="ws-status connecting" id="wsStatus">● WebSocket</div>
-            <div class="delivery-status" id="deliveryStatus">Checking...</div>
+        <div class="indicators">
+            <div class="indicator connecting" id="browserStatus">● Browser</div>
+            <div class="indicator connecting" id="gatewayStatus">● Gateway</div>
             <div class="status">Connected to Koba</div>
         </div>
     </header>
@@ -451,11 +482,15 @@
     <div id="content-chat" class="tab-content">
         <div class="chat-container">
             <div class="chat-header">
-                <span class="chat-title">💬 Chat with Koba</span>
-                <span style="font-size: 0.75rem; color: var(--text-muted);">Real-time via WebSocket</span>
+                <div>
+                    <span class="chat-title">💬 Chat with Koba</span>
+                    <div class="chat-subtitle">Direct connection to OpenClaw Gateway</div>
+                </div>
+            </div>
+            <div class="connection-warning" id="connectionWarning">
+                ⚠️ Gateway disconnected. Messages will be queued and sent when reconnected.
             </div>
             <div class="chat-messages" id="chatMessages">
-                <!-- Messages will appear here -->
                 <div class="typing-indicator" id="typingIndicator">
                     Koba is typing
                     <div class="typing-dots">
@@ -510,24 +545,27 @@
         
         // WebSocket state
         let ws = null;
-        let wsConnected = false;
+        let browserConnected = false;
+        let gatewayConnected = false;
         let reconnectAttempts = 0;
         let messageHistory = [];
+        let typingTimeout = null;
         
         // Initialize WebSocket connection
         function initWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
             
-            updateWsStatus('connecting');
+            updateBrowserStatus('connecting');
             
             ws = new WebSocket(wsUrl);
             
             ws.onopen = () => {
-                console.log('WebSocket connected');
-                wsConnected = true;
+                console.log('[Browser] WebSocket connected');
+                browserConnected = true;
                 reconnectAttempts = 0;
-                updateWsStatus('connected');
+                updateBrowserStatus('connected');
+                enableChatInput();
             };
             
             ws.onmessage = (event) => {
@@ -535,14 +573,15 @@
                     const data = JSON.parse(event.data);
                     handleWsMessage(data);
                 } catch (err) {
-                    console.error('Failed to parse WebSocket message:', err);
+                    console.error('[Browser] Failed to parse message:', err);
                 }
             };
             
             ws.onclose = () => {
-                console.log('WebSocket closed');
-                wsConnected = false;
-                updateWsStatus('disconnected');
+                console.log('[Browser] WebSocket closed');
+                browserConnected = false;
+                updateBrowserStatus('disconnected');
+                disableChatInput();
                 
                 // Reconnect with exponential backoff
                 const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
@@ -551,41 +590,99 @@
             };
             
             ws.onerror = (err) => {
-                console.error('WebSocket error:', err);
-                wsConnected = false;
-                updateWsStatus('disconnected');
+                console.error('[Browser] WebSocket error:', err);
+                browserConnected = false;
+                updateBrowserStatus('disconnected');
             };
         }
         
-        function updateWsStatus(status) {
-            const el = document.getElementById('wsStatus');
-            el.className = `ws-status ${status}`;
-            el.textContent = status === 'connected' ? '● Live' : 
-                            status === 'connecting' ? '◌ Connecting' : '● Offline';
+        function updateBrowserStatus(status) {
+            const el = document.getElementById('browserStatus');
+            el.className = `indicator ${status}`;
+            el.textContent = status === 'connected' ? '● Browser' : 
+                            status === 'connecting' ? '◌ Browser' : '● Browser';
+        }
+        
+        function updateGatewayStatus(connected) {
+            gatewayConnected = connected;
+            const el = document.getElementById('gatewayStatus');
+            el.className = `indicator ${connected ? 'koba' : 'disconnected'}`;
+            el.textContent = connected ? '● Koba' : '● Koba';
+            
+            // Show/hide connection warning
+            const warning = document.getElementById('connectionWarning');
+            warning.classList.toggle('visible', !connected);
+        }
+        
+        function enableChatInput() {
+            document.getElementById('chatInput').disabled = false;
+            document.getElementById('chatSendBtn').disabled = false;
+        }
+        
+        function disableChatInput() {
+            document.getElementById('chatInput').disabled = true;
+            document.getElementById('chatSendBtn').disabled = true;
         }
         
         function handleWsMessage(data) {
-            if (data.type === 'history') {
-                // Load message history
-                messageHistory = data.messages || [];
-                renderChatMessages();
-            } else if (data.type === 'message') {
-                // New message received
-                const msg = data.message;
-                if (!messageHistory.find(m => m.id === msg.id)) {
-                    messageHistory.push(msg);
-                    appendChatMessage(msg);
-                    scrollToBottom();
-                }
+            switch(data.type) {
+                case 'history':
+                    // Load message history
+                    messageHistory = data.messages || [];
+                    renderChatMessages();
+                    if (data.gateway_connected !== undefined) {
+                        updateGatewayStatus(data.gateway_connected);
+                    }
+                    break;
+                    
+                case 'message':
+                    // New message received
+                    const msg = data.message;
+                    if (!messageHistory.find(m => m.id === msg.id)) {
+                        messageHistory.push(msg);
+                        appendChatMessage(msg);
+                        scrollToBottom();
+                    }
+                    break;
+                    
+                case 'gateway_status':
+                    // Gateway connection status changed
+                    updateGatewayStatus(data.connected);
+                    break;
+                    
+                case 'typing':
+                    // Typing indicator
+                    showTypingIndicator(data.active);
+                    break;
+                    
+                case 'pong':
+                    // Connection keepalive
+                    break;
+                    
+                default:
+                    console.log('[Browser] Unknown message type:', data.type);
             }
+        }
+        
+        function showTypingIndicator(active) {
+            const indicator = document.getElementById('typingIndicator');
+            indicator.classList.toggle('visible', active);
+            
+            if (active) {
+                // Auto-hide after 5 seconds
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    indicator.classList.remove('visible');
+                }, 5000);
+            }
+            
+            if (active) scrollToBottom();
         }
         
         function renderChatMessages() {
             const container = document.getElementById('chatMessages');
-            // Keep typing indicator at the end
             const typingIndicator = document.getElementById('typingIndicator');
             
-            // Clear existing messages (except typing indicator)
             container.innerHTML = '';
             
             messageHistory.forEach(msg => {
@@ -605,9 +702,16 @@
         function createMessageElement(msg) {
             const div = document.createElement('div');
             div.className = `message ${msg.from}`;
+            div.dataset.messageId = msg.id;
+            
+            const sender = msg.from === 'me' ? 'You' : 'Koba';
+            
             div.innerHTML = `
                 <div class="message-bubble">${escapeHtml(msg.text)}</div>
-                <div class="message-time">${formatTime(msg.timestamp)}</div>
+                <div class="message-meta">
+                    <span class="message-sender">${sender}</span>
+                    <span class="message-time">${formatTime(msg.timestamp)}</span>
+                </div>
             `;
             return div;
         }
@@ -615,9 +719,9 @@
         function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
-            if (!text || !wsConnected) return;
+            if (!text || !browserConnected) return;
             
-            // Send via WebSocket for real-time delivery
+            // Send via WebSocket
             ws.send(JSON.stringify({
                 type: 'send',
                 text: text
@@ -639,7 +743,7 @@
         
         // Keep connection alive
         setInterval(() => {
-            if (wsConnected && ws) {
+            if (browserConnected && ws) {
                 ws.send(JSON.stringify({ type: 'ping' }));
             }
         }, 30000);
@@ -779,34 +883,10 @@
             if (e.key === 'Enter') addTask();
         });
         
-        // Delivery status indicator
-        async function updateDeliveryStatus() {
-            try {
-                const res = await fetch('/api/tasks');
-                const data = await res.json();
-                
-                // Check for delivery alert in doing column
-                const alerts = data.doing?.filter(t => t.text?.includes('Delivery failing')) || [];
-                const statusEl = document.getElementById('deliveryStatus');
-                
-                if (alerts.length > 0) {
-                    statusEl.textContent = '🔴 Telegram offline';
-                    statusEl.className = 'delivery-status offline';
-                } else {
-                    statusEl.textContent = '🟢 Telegram online';
-                    statusEl.className = 'delivery-status online';
-                }
-            } catch (err) {
-                console.error('Failed to check delivery status:', err);
-            }
-        }
-        
         // Init
         loadTasks();
-        updateDeliveryStatus();
         initWebSocket();
         setInterval(loadTasks, 5000);
-        setInterval(updateDeliveryStatus, 30000);
     </script>
 </body>
 </html>
