@@ -638,10 +638,16 @@
                 case 'message':
                     // New message received
                     const msg = data.message;
-                    if (!messageHistory.find(m => m.id === msg.id)) {
+                    const existingIdx = messageHistory.findIndex(m => m.id === msg.id);
+                    if (existingIdx === -1) {
+                        // New message
                         messageHistory.push(msg);
                         appendChatMessage(msg);
                         scrollToBottom();
+                    } else if (msg.streaming) {
+                        // Streaming update - replace text
+                        messageHistory[existingIdx].text = msg.text;
+                        updateChatMessage(msg);
                     }
                     break;
                     
@@ -697,6 +703,16 @@
             const container = document.getElementById('chatMessages');
             const typingIndicator = document.getElementById('typingIndicator');
             container.insertBefore(createMessageElement(msg), typingIndicator);
+        }
+        
+        function updateChatMessage(msg) {
+            const existingEl = document.querySelector(`[data-message-id="${msg.id}"]`);
+            if (existingEl) {
+                const bubble = existingEl.querySelector('.message-bubble');
+                if (bubble) {
+                    bubble.innerHTML = escapeHtml(msg.text);
+                }
+            }
         }
         
         function createMessageElement(msg) {
