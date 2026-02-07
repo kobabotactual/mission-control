@@ -626,8 +626,9 @@
         
         function handleWsMessage(data) {
             switch(data.type) {
+                case 'init':
                 case 'history':
-                    // Load message history
+                    // Load message history (init or history message type)
                     messageHistory = data.messages || [];
                     renderChatMessages();
                     if (data.gateway_connected !== undefined) {
@@ -644,10 +645,30 @@
                         messageHistory.push(msg);
                         appendChatMessage(msg);
                         scrollToBottom();
-                    } else if (msg.streaming) {
+                    } else if (msg.streaming || msg.complete) {
                         // Streaming update - replace text
                         messageHistory[existingIdx].text = msg.text;
+                        messageHistory[existingIdx].streaming = msg.streaming;
+                        messageHistory[existingIdx].complete = msg.complete;
                         updateChatMessage(msg);
+                    }
+                    break;
+                    
+                case 'message_update':
+                    // Message update (streaming completion)
+                    const updateMsg = data.message;
+                    const updateIdx = messageHistory.findIndex(m => m.id === updateMsg.id);
+                    if (updateIdx !== -1) {
+                        messageHistory[updateIdx].text = updateMsg.text;
+                        messageHistory[updateIdx].complete = updateMsg.complete;
+                        delete messageHistory[updateIdx].streaming;
+                        delete messageHistory[updateIdx].run_id;
+                        updateChatMessage(updateMsg);
+                    } else {
+                        // New complete message
+                        messageHistory.push(updateMsg);
+                        appendChatMessage(updateMsg);
+                        scrollToBottom();
                     }
                     break;
                     
@@ -663,6 +684,12 @@
                     
                 case 'pong':
                     // Connection keepalive
+                    break;
+                    
+                case 'clear':
+                    // Clear chat history
+                    messageHistory = [];
+                    renderChatMessages();
                     break;
                     
                 default:

@@ -187,6 +187,32 @@ def on_gateway_message(ws, message):
             })
             print(f"[Gateway] Message from Koba: {msg_data['text'][:50]}...")
         
+        elif msg_type == 'event' and event_type == 'chat':
+            # Chat message event from Gateway
+            payload = data.get('payload', {})
+            message_data = payload.get('message', {})
+            text = message_data.get('text', '') if isinstance(message_data, dict) else str(message_data)
+            
+            if text:
+                msg_data = {
+                    "id": f"koba_{int(time.time() * 1000)}",
+                    "text": text,
+                    "from": "koba",
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                # Save to history
+                history = load_chat_history()
+                history["messages"].append(msg_data)
+                save_chat_history(history)
+                
+                # Broadcast to browsers
+                broadcast_to_clients({
+                    "type": "message",
+                    "message": msg_data
+                })
+                print(f"[Gateway] Chat from Koba: {msg_data['text'][:50]}...")
+        
         elif msg_type == 'event' and event_type == 'agent':
             # Agent event (streaming response)
             payload = data.get('payload', {})
