@@ -376,6 +376,80 @@ def send_to_gateway(message_text):
     except Exception as e:
         return False, str(e)
 
+# Polling thread for agent responses
+def poll_for_responses():
+    """Poll session history for new agent responses"""
+    import subprocess
+    import json as json_mod
+    
+    last_check = time.time()
+    known_message_ids = set()
+    
+    # Load existing message IDs
+    history = load_chat_history()
+    for msg in history.get("messages", []):
+        if msg.get("id"):
+            known_message_ids.add(msg["id"])
+    
+    while True:
+        try:
+            time.sleep(2)  # Check every 2 seconds
+            
+            # Get recent session history using openclaw CLI
+            result = subprocess.run(
+                ['openclaw', 'sessions', 'history', 'agent:main:main', '--limit', '10'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                for line in lines:
+                    try:
+                        msg = json_mod.loads(line)
+                        msg_id = msg.get('id')
+                        msg_role = msg.get('role')
+                        
+                        # Only process assistant messages we haven't seen
+                        if msg_role == 'assistant' and msg_id and msg_id not in known_message_ids:
+                            text = msg.get('content', [{}])[0].get('text', '') if isinstance(msg.get('content'), list) else msg.get('text', '')
+                            
+                            if text:
+                                # Create message data
+                                msg_data = {
+                                    "id": msg_id,
+                                    "text": text,
+                                    "from": "koba",
+                                    "timestamp": msg.get('timestamp') or datetime.now().isoformat()
+                                }
+                                
+                                # Save to history
+                                history = load_chat_history()
+                                history["messages"].append(msg_data)
+                                save_chat_history(history)
+                                
+                                # Hide typing indicator
+                                broadcast_to_clients({
+                                    "type": "typing",
+                                    "active": False
+                                })
+                                
+                                # Broadcast to browsers
+                                broadcast_to_clients({
+                                    "type": "message",
+                                    "message": msg_data
+                                })
+                                
+                                known_message_ids.add(msg_id)
+                                print(f"[Poll] New response: {text[:50]}...")
+                    except Exception as e:
+                        continue
+                        
+        except Exception as e:
+            print(f"[Poll] Error: {e}")
+            time.sleep(5)
+
 # Gateway thread will be started in main block
 
 # ==================== HTTP ROUTES ====================
@@ -574,6 +648,11 @@ if __name__ == '__main__':
         print("[Mission Control] Starting Gateway connection thread...")
         gateway_thread = threading.Thread(target=gateway_connection_loop, daemon=True)
         gateway_thread.start()
+    
+    # Start polling for agent responses
+    print("[Mission Control] Starting response polling thread...")
+    poll_thread = threading.Thread(target=poll_for_responses, daemon=True)
+    poll_thread.start()
     
     # Run with threading support for WebSocket
     app.run(host='0.0.0.0', port=8080, debug=False, threaded=True)
